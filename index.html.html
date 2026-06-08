@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visa Passport Appointment System</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;background:#f4f6f9;color:#1a1a1a;min-height:100vh}
+  .container{max-width:860px;margin:0 auto;padding:1.5rem 1rem}
+  input,select{width:100%;padding:8px 12px;border:1px solid #d0d5dd;border-radius:8px;font-size:14px;background:#fff;color:#1a1a1a;outline:none}
+  input:focus,select:focus{border-color:#378ADD;box-shadow:0 0 0 2px rgba(55,138,221,0.15)}
+  .badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600}
+  .badge-pending{background:#FAEEDA;color:#633806}
+  .badge-confirmed{background:#EAF3DE;color:#27500A}
+  .badge-cancelled{background:#FCEBEB;color:#791F1F}
+  .badge-rescheduled{background:#E6F1FB;color:#0C447C}
+  .tab-btn{padding:8px 18px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;cursor:pointer;font-size:14px;color:#555;transition:all 0.15s}
+  .tab-btn:hover{background:#f0f4ff;color:#185FA5}
+  .tab-btn.active{background:#E6F1FB;color:#0C447C;border-color:#185FA5;font-weight:600}
+  .btn-primary{padding:9px 20px;background:#185FA5;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;transition:background 0.15s}
+  .btn-primary:hover{background:#0C447C}
+  .btn-success{padding:9px 20px;background:#3B6D11;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600}
+  .btn-success:hover{background:#27500A}
+  .btn-sm{padding:5px 12px;font-size:12px;border-radius:8px;cursor:pointer;border:1px solid #d0d5dd;background:#fff;color:#555;transition:all 0.15s}
+  .btn-sm:hover{background:#f5f5f5}
+  .btn-confirm{border-color:#3B6D11;color:#27500A;background:#EAF3DE}
+  .btn-cancel{border-color:#A32D2D;color:#791F1F;background:#FCEBEB}
+  .btn-reschedule{border-color:#185FA5;color:#0C447C;background:#E6F1FB}
+  .card{background:#fff;border:1px solid #e0e4ea;border-radius:12px;padding:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+  .form-group{margin-bottom:1rem}
+  .form-group label{display:block;font-size:13px;color:#555;margin-bottom:5px;font-weight:500}
+  .slot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(95px,1fr));gap:8px;margin-top:8px}
+  .slot{padding:8px;text-align:center;border:1px solid #d0d5dd;border-radius:8px;cursor:pointer;font-size:13px;color:#333;background:#fff;transition:all 0.15s}
+  .slot:hover{background:#E6F1FB;color:#0C447C;border-color:#185FA5}
+  .slot.selected{background:#185FA5;color:#fff;border-color:#185FA5;font-weight:600}
+  .slot.full{background:#f5f5f5;color:#aaa;cursor:not-allowed;border-color:#e0e0e0}
+  .stat{background:#f4f6f9;border-radius:8px;padding:1rem;text-align:center;border:1px solid #e0e4ea}
+  .stat-num{font-size:26px;font-weight:700;color:#1a1a1a}
+  .stat-lbl{font-size:12px;color:#777;margin-top:2px}
+  .success-box{background:#EAF3DE;border:1px solid #3B6D11;border-radius:12px;padding:2rem;text-align:center}
+  .alert-banner{border-radius:8px;padding:10px 14px;font-size:13px;display:flex;align-items:center;gap:8px;border:1px solid}
+  .alert-warn{background:#FAEEDA;color:#633806;border-color:#BA7517}
+  .alert-danger{background:#FCEBEB;color:#791F1F;border-color:#A32D2D}
+  .alert-info{background:#E6F1FB;color:#0C447C;border-color:#185FA5}
+  .alert-success{background:#EAF3DE;color:#27500A;border-color:#3B6D11}
+  .modal-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);z-index:100;align-items:center;justify-content:center;padding:1rem}
+  .modal-bg.open{display:flex}
+  .modal-box{background:#fff;border-radius:12px;padding:1.5rem;width:100%;max-width:440px;max-height:90vh;overflow-y:auto}
+  header{background:#fff;border-bottom:1px solid #e0e4ea;padding:1rem;margin-bottom:1.5rem;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+  .header-inner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  h1{font-size:20px;font-weight:700;color:#1a1a1a}
+  .subtitle{font-size:12px;color:#777;margin-top:2px}
+  @media(max-width:600px){
+    .grid-2{grid-template-columns:1fr!important}
+    .flex-wrap-sm{flex-wrap:wrap}
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="header-inner">
+      <div>
+        <h1><i class="ti ti-passport" style="vertical-align:-2px;margin-right:8px"></i>Visa Passport Appointment System</h1>
+        <p class="subtitle">Monday – Friday only &nbsp;·&nbsp; Closed on public &amp; mercantile holidays &nbsp;·&nbsp; Max 60 appointments/day</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="tab-btn active" onclick="showView('applicant')" id="tab-applicant"><i class="ti ti-calendar-plus"></i> Book appointment</button>
+        <button class="tab-btn" onclick="showView('admin')" id="tab-admin"><i class="ti ti-settings"></i> Admin</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- APPLICANT VIEW -->
+  <div id="view-applicant">
+    <div id="booking-form">
+      <div class="card">
+        <p style="font-size:16px;font-weight:600;margin-bottom:1.25rem"><i class="ti ti-calendar-plus" style="margin-right:6px;color:#185FA5"></i>Book your passport handover appointment</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem" class="grid-2">
+          <div class="form-group"><label>Full name</label><input type="text" id="app-name" placeholder="e.g. Kamal Perera"></div>
+          <div class="form-group"><label>Passport number</label><input type="text" id="app-passport" placeholder="e.g. N1234567"></div>
+          <div class="form-group"><label>Division</label>
+            <select id="app-division">
+              <option value="">Select division</option>
+              <option>Colombo</option><option>Gampaha</option><option>Kalutara</option>
+              <option>Kandy</option><option>Galle</option><option>Matara</option>
+              <option>Jaffna</option><option>Kurunegala</option><option>Ratnapura</option>
+              <option>Badulla</option><option>Other</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Contact number</label><input type="tel" id="app-phone" placeholder="e.g. 0771234567"></div>
+        </div>
+        <div class="form-group">
+          <label>Select date <span style="font-size:12px;color:#999">(weekdays only — holidays blocked)</span></label>
+          <input type="date" id="app-date" style="max-width:240px">
+        </div>
+        <div id="day-status-bar" style="display:none;margin-bottom:1rem"></div>
+        <div id="slot-section" style="display:none">
+          <label style="font-size:13px;color:#555;font-weight:500">Select time slot <span id="slot-date-label" style="color:#999;font-size:12px"></span></label>
+          <div class="slot-grid" id="slot-grid"></div>
+        </div>
+        <div style="margin-top:1.25rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <button class="btn-primary" onclick="submitBooking()"><i class="ti ti-check"></i> Confirm booking</button>
+          <p id="booking-error" style="font-size:13px;color:#A32D2D"></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="booking-success" style="display:none;margin-top:1rem">
+      <div class="success-box">
+        <i class="ti ti-circle-check" style="font-size:40px;color:#3B6D11;display:block;margin-bottom:12px"></i>
+        <p style="font-size:18px;font-weight:700;color:#27500A;margin-bottom:8px">Appointment booked!</p>
+        <p id="success-detail" style="font-size:14px;color:#3B6D11;margin-bottom:16px"></p>
+        <p style="font-size:13px;color:#3B6D11;margin-bottom:16px">Please arrive 10 minutes before your slot. Bring your original passport and this confirmation.</p>
+        <div style="background:#fff;border-radius:8px;padding:1rem;display:inline-block;min-width:260px;border:1px solid #3B6D11">
+          <p style="font-size:12px;color:#3B6D11;margin-bottom:6px;font-weight:600">Booking reference</p>
+          <p id="ref-number" style="font-size:22px;font-weight:700;color:#27500A;letter-spacing:3px"></p>
+        </div>
+        <br><br>
+        <button class="btn-sm" onclick="newBooking()">Book another appointment</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN VIEW -->
+  <div id="view-admin" style="display:none">
+    <div id="admin-login" class="card" style="max-width:380px;margin:0 auto">
+      <p style="font-size:16px;font-weight:600;margin-bottom:1.25rem"><i class="ti ti-lock" style="margin-right:6px;color:#185FA5"></i>Admin login</p>
+      <div class="form-group"><label>Username</label><input type="text" id="admin-user" placeholder="admin"></div>
+      <div class="form-group"><label>Password</label><input type="password" id="admin-pass" placeholder="••••••••"></div>
+      <button class="btn-primary" style="width:100%;margin-top:0.5rem" onclick="adminLogin()">Sign in</button>
+      <p id="login-error" style="font-size:13px;color:#A32D2D;margin-top:8px"></p>
+      <p style="font-size:12px;color:#999;margin-top:12px">Default credentials: <strong>admin</strong> / <strong>admin123</strong></p>
+    </div>
+
+    <div id="admin-dashboard" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px">
+        <p style="font-size:16px;font-weight:600"><i class="ti ti-layout-dashboard" style="margin-right:6px;color:#185FA5"></i>Admin dashboard</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="tab-btn active" onclick="switchAdminTab('bookings')" id="atab-bookings">Bookings</button>
+          <button class="tab-btn" onclick="switchAdminTab('slots')" id="atab-slots">Manage slots</button>
+          <button class="tab-btn" onclick="switchAdminTab('holidays')" id="atab-holidays"><i class="ti ti-beach"></i> Holidays</button>
+          <button class="btn-sm" onclick="adminLogout()"><i class="ti ti-logout"></i> Sign out</button>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:1.25rem">
+        <div class="stat"><div class="stat-num" id="s-total">0</div><div class="stat-lbl">Total bookings</div></div>
+        <div class="stat"><div class="stat-num" id="s-pending" style="color:#BA7517">0</div><div class="stat-lbl">Pending</div></div>
+        <div class="stat"><div class="stat-num" id="s-confirmed" style="color:#3B6D11">0</div><div class="stat-lbl">Confirmed</div></div>
+        <div class="stat"><div class="stat-num" id="s-cancelled" style="color:#A32D2D">0</div><div class="stat-lbl">Cancelled</div></div>
+      </div>
+
+      <!-- BOOKINGS TAB -->
+      <div id="admin-bookings">
+        <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:flex-end">
+          <input type="text" id="search-input" placeholder="Search name, passport, division..." style="flex:1;min-width:180px" oninput="renderBookings()">
+          <select id="filter-status" style="max-width:160px" onchange="renderBookings()">
+            <option value="">All statuses</option>
+            <option>Pending</option><option>Confirmed</option><option>Cancelled</option><option>Rescheduled</option>
+          </select>
+          <div>
+            <label style="font-size:12px;color:#777;display:block;margin-bottom:4px">Filter / export date</label>
+            <input type="date" id="filter-date" style="max-width:175px" onchange="renderBookings()">
+          </div>
+          <button class="btn-success" onclick="exportToExcel()"><i class="ti ti-file-spreadsheet"></i> Export to Excel</button>
+        </div>
+        <div id="export-msg" style="margin-bottom:10px"></div>
+        <div id="bookings-list"></div>
+      </div>
+
+      <!-- SLOTS TAB -->
+      <div id="admin-slots" style="display:none">
+        <div class="card" style="margin-bottom:1rem">
+          <p style="font-size:15px;font-weight:600;margin-bottom:0.25rem"><i class="ti ti-clock" style="margin-right:6px;color:#185FA5"></i>Add available slots</p>
+          <p style="font-size:12px;color:#777;margin-bottom:1rem">Weekdays only. Holidays and weekends are blocked. Max 60 bookings/day.</p>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div style="flex:1;min-width:140px"><label style="font-size:13px;color:#555;font-weight:500;display:block;margin-bottom:5px">Date</label><input type="date" id="slot-add-date" onchange="updateSlotPreview()"></div>
+            <div style="flex:1;min-width:110px"><label style="font-size:13px;color:#555;font-weight:500;display:block;margin-bottom:5px">Start time</label><input type="time" id="slot-start" value="08:00" onchange="updateSlotPreview()"></div>
+            <div style="flex:1;min-width:110px"><label style="font-size:13px;color:#555;font-weight:500;display:block;margin-bottom:5px">End time</label><input type="time" id="slot-end" value="16:00" onchange="updateSlotPreview()"></div>
+            <div style="flex:1;min-width:100px"><label style="font-size:13px;color:#555;font-weight:500;display:block;margin-bottom:5px">Interval (min)</label>
+              <select id="slot-interval" onchange="updateSlotPreview()">
+                <option value="15">15 min</option><option value="20">20 min</option>
+                <option value="30" selected>30 min</option><option value="45">45 min</option><option value="60">60 min</option>
+              </select>
+            </div>
+            <div style="flex:1;min-width:90px"><label style="font-size:13px;color:#555;font-weight:500;display:block;margin-bottom:5px">Max per slot</label><input type="number" id="slot-max" value="5" min="1" max="20" style="max-width:90px" onchange="updateSlotPreview()"></div>
+            <button class="btn-primary" onclick="generateSlots()"><i class="ti ti-plus"></i> Generate</button>
+          </div>
+          <div id="slot-capacity-preview" style="margin-top:12px"></div>
+          <p id="slot-msg" style="font-size:13px;margin-top:10px"></p>
+        </div>
+        <div id="slot-preview"></div>
+      </div>
+
+      <!-- HOLIDAYS TAB -->
+      <div id="admin-holidays" style="display:none">
+        <div class="card" style="margin-bottom:1rem">
+          <p style="font-size:15px;font-weight:600;margin-bottom:0.5rem"><i class="ti ti-calendar-off" style="margin-right:6px;color:#185FA5"></i>Add custom holiday / office closure</p>
+          <p style="font-size:12px;color:#777;margin-bottom:1rem">Sri Lanka public &amp; mercantile holidays for 2025–2026 are pre-loaded. Add extra closures below.</p>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div style="flex:1;min-width:160px"><label style="font-size:13px;color:#555;font-weight:500;display:block;margin-bottom:5px">Date</label><input type="date" id="hol-date"></div>
+            <div style="flex:2;min-width:200px"><label style="font-size:13px;color:#555;font-weight:500;display:block;margin-bottom:5px">Description</label><input type="text" id="hol-desc" placeholder="e.g. Special poya day"></div>
+            <button class="btn-primary" onclick="addHoliday()"><i class="ti ti-plus"></i> Add</button>
+          </div>
+          <p id="hol-msg" style="font-size:13px;margin-top:10px"></p>
+        </div>
+        <div id="holidays-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RESCHEDULE MODAL -->
+<div class="modal-bg" id="reschedule-modal">
+  <div class="modal-box">
+    <p style="font-size:16px;font-weight:600;margin-bottom:1rem"><i class="ti ti-calendar-event" style="margin-right:6px;color:#185FA5"></i>Reschedule appointment</p>
+    <p style="font-size:13px;color:#777;margin-bottom:1rem">Ref: <strong id="rsch-ref"></strong></p>
+    <div class="form-group"><label>New date <span style="font-size:12px;color:#999">(weekdays, non-holiday)</span></label><input type="date" id="rsch-date" onchange="loadRschSlots()"></div>
+    <div id="rsch-status-bar" style="display:none;margin-bottom:10px"></div>
+    <div id="rsch-slot-section" style="display:none"><label style="font-size:13px;color:#555;font-weight:500;display:block;margin-bottom:6px">New time slot</label><div class="slot-grid" id="rsch-slot-grid"></div></div>
+    <div style="display:flex;gap:8px;margin-top:1.25rem">
+      <button class="btn-primary" onclick="confirmReschedule()">Confirm reschedule</button>
+      <button class="btn-sm" onclick="closeReschedule()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DAY_LIMIT=60;
+const SL_HOLIDAYS={
+  '2025-01-01':"New Year's Day",'2025-01-14':'Thai Pongal','2025-02-04':'National Day',
+  '2025-02-12':'Maha Sivarathri','2025-02-26':'Milad-un-Nabi','2025-03-14':'Madin Poya',
+  '2025-04-01':'Good Friday (Mercantile)','2025-04-04':'Bak Poya',
+  '2025-04-13':'Day before Sinhala & Tamil New Year','2025-04-14':'Sinhala & Tamil New Year',
+  '2025-05-01':'Labour Day','2025-05-12':'Vesak Poya','2025-05-13':'Day after Vesak',
+  '2025-06-10':'Poson Poya','2025-07-10':'Esala Poya','2025-08-08':'Nikini Poya',
+  '2025-09-07':'Binara Poya','2025-10-06':'Vap Poya','2025-10-20':'Deepavali',
+  '2025-11-05':'Ill Poya','2025-12-04':'Unduvap Poya','2025-12-25':'Christmas Day',
+  '2026-01-01':"New Year's Day",'2026-01-14':'Thai Pongal','2026-02-04':'National Day',
+  '2026-03-01':'Maha Sivarathri','2026-03-20':'Madin Poya',
+  '2026-04-03':'Good Friday (Mercantile)','2026-04-13':'Day before Sinhala & Tamil New Year',
+  '2026-04-14':'Sinhala & Tamil New Year','2026-05-01':'Labour Day',
+  '2026-05-31':'Vesak Poya','2026-06-01':'Day after Vesak','2026-06-29':'Poson Poya',
+  '2026-07-29':'Esala Poya','2026-08-27':'Nikini Poya','2026-09-26':'Binara Poya',
+  '2026-10-25':'Vap Poya / Deepavali','2026-11-08':'Milad-un-Nabi','2026-11-23':'Ill Poya',
+  '2026-12-23':'Unduvap Poya','2026-12-25':'Christmas Day'
+};
+let customHolidays={},slots={},bookings=[],selectedSlot=null,rschBookingId=null,rschSelectedSlot=null;
+
+function fmtDate(d){return d.toISOString().split('T')[0];}
+function isHoliday(dk){return !!(SL_HOLIDAYS[dk]||customHolidays[dk]);}
+function getHolidayName(dk){return SL_HOLIDAYS[dk]||customHolidays[dk]||null;}
+function isWeekend(dk){const d=new Date(dk+'T00:00');return d.getDay()===0||d.getDay()===6;}
+function isWorkingDay(dk){return !isWeekend(dk)&&!isHoliday(dk);}
+function getDayTotal(dk){if(!slots[dk])return 0;return slots[dk].reduce((a,s)=>a+s.max,0);}
+function getDayBooked(dk){return bookings.filter(b=>b.date===dk&&b.status!=='Cancelled').length;}
+function isDayFull(dk){return getDayBooked(dk)>=DAY_LIMIT;}
+
+function capacityBar(dk){
+  const booked=getDayBooked(dk),pct=Math.round((booked/DAY_LIMIT)*100);
+  const color=pct>=100?'#A32D2D':pct>=80?'#BA7517':'#3B6D11';
+  const bg=pct>=100?'#FCEBEB':pct>=80?'#FAEEDA':'#EAF3DE';
+  const bdr=pct>=100?'#A32D2D':pct>=80?'#BA7517':'#3B6D11';
+  return `<div style="background:${bg};border-radius:8px;padding:10px 14px;font-size:13px;color:${color};border:1px solid ${bdr}">
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+      <span><i class="ti ti-users" style="margin-right:4px"></i>Daily capacity</span>
+      <span style="font-weight:600">${booked}/${DAY_LIMIT}${pct>=100?' — Day full':''}</span>
+    </div>
+    <div style="background:rgba(0,0,0,0.1);border-radius:20px;height:6px;overflow:hidden">
+      <div style="width:${Math.min(pct,100)}%;height:100%;background:${color};border-radius:20px"></div>
+    </div>
+  </div>`;
+}
+
+function exportToExcel(){
+  const dateFilter=document.getElementById('filter-date').value;
+  const statusFilter=document.getElementById('filter-status').value;
+  const search=document.getElementById('search-input').value.toLowerCase();
+  const msg=document.getElementById('export-msg');
+  let data=bookings.filter(b=>(!dateFilter||b.date===dateFilter)&&(!statusFilter||b.status===statusFilter)&&(!search||b.name.toLowerCase().includes(search)||b.passport.toLowerCase().includes(search)||b.division.toLowerCase().includes(search)||b.id.toLowerCase().includes(search)));
+  if(!data.length){msg.innerHTML='<div class="alert-banner alert-warn"><i class="ti ti-alert-triangle"></i>No appointments to export for the selected filters.</div>';setTimeout(()=>msg.innerHTML='',3000);return;}
+  const rows=data.map((b,i)=>({'No.':(i+1),'Reference':b.id,'Full Name':b.name,'Passport No.':b.passport,'Division':b.division,'Contact No.':b.phone,'Date':new Date(b.date+'T00:00').toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}),'Time Slot':b.time,'Status':b.status,'Booked On':b.created}));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:5},{wch:12},{wch:22},{wch:14},{wch:14},{wch:16},{wch:32},{wch:12},{wch:14},{wch:14}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Appointments');
+  const wsSummary=XLSX.utils.aoa_to_sheet([['Visa Passport Appointment Report'],['Generated on:',new Date().toLocaleString('en-GB')],['Date filter:',dateFilter||'All dates'],['Status filter:',statusFilter||'All statuses'],['Total records:',data.length]]);
+  wsSummary['!cols']=[{wch:20},{wch:36}];
+  XLSX.utils.book_append_sheet(wb,wsSummary,'Report Info');
+  const filename=dateFilter?`Appointments_${dateFilter}.xlsx`:`Appointments_All_${fmtDate(new Date())}.xlsx`;
+  XLSX.writeFile(wb,filename);
+  msg.innerHTML=`<div class="alert-banner alert-success"><i class="ti ti-circle-check"></i>Exported <strong>${data.length}</strong> record(s) to <strong>${filename}</strong></div>`;
+  setTimeout(()=>msg.innerHTML='',4000);
+}
+
+function initData(){
+  const today=new Date();
+  for(let i=0;i<30;i++){
+    const d=new Date(today);d.setDate(today.getDate()+i);
+    const dk=fmtDate(d);
+    if(!isWorkingDay(dk)) continue;
+    slots[dk]=[];
+    ['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','13:00','13:30','14:00','14:30','15:00','15:30'].forEach(t=>slots[dk].push({time:t,max:5,booked:0}));
+  }
+  updateStats();
+}
+
+function showView(v){
+  document.getElementById('view-applicant').style.display=v==='applicant'?'block':'none';
+  document.getElementById('view-admin').style.display=v==='admin'?'block':'none';
+  document.getElementById('tab-applicant').classList.toggle('active',v==='applicant');
+  document.getElementById('tab-admin').classList.toggle('active',v==='admin');
+}
+
+document.getElementById('app-date').addEventListener('change',function(){
+  const dk=this.value;
+  const sb=document.getElementById('day-status-bar'),sec=document.getElementById('slot-section'),grid=document.getElementById('slot-grid');
+  selectedSlot=null;sec.style.display='none';sb.style.display='none';
+  if(isWeekend(dk)){sb.innerHTML='<div class="alert-banner alert-warn"><i class="ti ti-calendar-x"></i>The office is closed on weekends. Please select a weekday.</div>';sb.style.display='block';return;}
+  if(isHoliday(dk)){sb.innerHTML=`<div class="alert-banner alert-danger"><i class="ti ti-beach"></i>The office is closed on <strong>${getHolidayName(dk)}</strong>. Please select another date.</div>`;sb.style.display='block';return;}
+  if(!slots[dk]||slots[dk].length===0){sb.innerHTML='<div class="alert-banner alert-info"><i class="ti ti-info-circle"></i>No appointment slots configured for this date yet. Please try another date.</div>';sb.style.display='block';return;}
+  sb.innerHTML=capacityBar(dk);sb.style.display='block';
+  sec.style.display='block';
+  if(isDayFull(dk)){grid.innerHTML='<div class="alert-banner alert-danger"><i class="ti ti-alert-triangle"></i>This day has reached the maximum of 60 appointments. Please select another date.</div>';return;}
+  document.getElementById('slot-date-label').textContent='— '+new Date(dk+'T00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+  renderSlotGrid(slots[dk],grid,t=>{selectedSlot=t;});
+});
+
+function renderSlotGrid(daySlots,container,onSelect){
+  container.innerHTML='';
+  daySlots.forEach(s=>{
+    const el=document.createElement('div');
+    el.className='slot'+(s.booked>=s.max?' full':'');
+    el.innerHTML=s.time+'<br><span style="font-size:11px;color:#999">'+(s.booked>=s.max?'Full':(s.max-s.booked)+' left')+'</span>';
+    if(s.booked<s.max) el.onclick=()=>{container.querySelectorAll('.slot').forEach(x=>x.classList.remove('selected'));el.classList.add('selected');onSelect(s.time);};
+    container.appendChild(el);
+  });
+}
+
+function submitBooking(){
+  const name=document.getElementById('app-name').value.trim(),passport=document.getElementById('app-passport').value.trim(),division=document.getElementById('app-division').value,phone=document.getElementById('app-phone').value.trim(),date=document.getElementById('app-date').value,err=document.getElementById('booking-error');
+  if(!name||!passport||!division||!phone||!date||!selectedSlot){err.textContent='Please fill all fields and select a time slot.';return;}
+  if(!isWorkingDay(date)){err.textContent='Selected date is a weekend or public holiday.';return;}
+  if(isDayFull(date)){err.textContent='Sorry, this day is fully booked. Please choose another date.';return;}
+  err.textContent='';
+  const sl=slots[date].find(s=>s.time===selectedSlot);sl.booked++;
+  const ref='APT'+String(1000+bookings.length+1);
+  bookings.push({id:ref,name,passport,division,phone,date,time:selectedSlot,status:'Pending',created:new Date().toLocaleDateString('en-GB')});
+  updateStats();
+  document.getElementById('booking-form').style.display='none';
+  document.getElementById('booking-success').style.display='block';
+  document.getElementById('ref-number').textContent=ref;
+  document.getElementById('success-detail').textContent=`${name} — ${new Date(date+'T00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} at ${selectedSlot}`;
+}
+
+function newBooking(){
+  document.getElementById('booking-form').style.display='block';
+  document.getElementById('booking-success').style.display='none';
+  ['app-name','app-passport','app-phone'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('app-division').value='';document.getElementById('app-date').value='';
+  document.getElementById('slot-section').style.display='none';document.getElementById('day-status-bar').style.display='none';
+  selectedSlot=null;
+}
+
+function adminLogin(){
+  if(document.getElementById('admin-user').value==='admin'&&document.getElementById('admin-pass').value==='admin123'){
+    document.getElementById('admin-login').style.display='none';
+    document.getElementById('admin-dashboard').style.display='block';
+    renderBookings();
+  } else {document.getElementById('login-error').textContent='Invalid username or password.';}
+}
+function adminLogout(){
+  document.getElementById('admin-login').style.display='block';
+  document.getElementById('admin-dashboard').style.display='none';
+  document.getElementById('admin-user').value='';document.getElementById('admin-pass').value='';
+}
+
+function switchAdminTab(t){
+  ['bookings','slots','holidays'].forEach(x=>{
+    document.getElementById('admin-'+x).style.display=x===t?'block':'none';
+    document.getElementById('atab-'+x).classList.toggle('active',x===t);
+  });
+  if(t==='slots') renderSlotPreview();
+  if(t==='holidays') renderHolidaysList();
+}
+
+function renderBookings(){
+  const search=document.getElementById('search-input').value.toLowerCase(),status=document.getElementById('filter-status').value,date=document.getElementById('filter-date').value;
+  let filtered=bookings.filter(b=>(!status||b.status===status)&&(!date||b.date===date)&&(!search||b.name.toLowerCase().includes(search)||b.passport.toLowerCase().includes(search)||b.division.toLowerCase().includes(search)||b.id.toLowerCase().includes(search)));
+  const container=document.getElementById('bookings-list');
+  if(!filtered.length){container.innerHTML='<p style="font-size:14px;color:#777;padding:1rem 0">No appointments found.</p>';return;}
+  container.innerHTML=filtered.map(b=>`
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+            <span style="font-size:15px;font-weight:600">${b.name}</span>
+            <span class="badge badge-${b.status.toLowerCase()}">${b.status}</span>
+          </div>
+          <div style="font-size:13px;color:#777;display:flex;flex-wrap:wrap;gap:14px">
+            <span><i class="ti ti-id-badge"></i> ${b.passport}</span>
+            <span><i class="ti ti-map-pin"></i> ${b.division}</span>
+            <span><i class="ti ti-phone"></i> ${b.phone}</span>
+            <span><i class="ti ti-calendar"></i> ${new Date(b.date+'T00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</span>
+            <span><i class="ti ti-clock"></i> ${b.time}</span>
+            <span style="color:#bbb">Ref: ${b.id}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${b.status!=='Confirmed'&&b.status!=='Cancelled'?`<button class="btn-sm btn-confirm" onclick="changeStatus('${b.id}','Confirmed')"><i class="ti ti-check"></i> Confirm</button>`:''}
+          ${b.status!=='Cancelled'?`<button class="btn-sm btn-cancel" onclick="changeStatus('${b.id}','Cancelled')"><i class="ti ti-x"></i> Cancel</button>`:''}
+          ${b.status!=='Cancelled'?`<button class="btn-sm btn-reschedule" onclick="openReschedule('${b.id}')"><i class="ti ti-calendar-event"></i> Reschedule</button>`:''}
+        </div>
+      </div>
+    </div>`).join('');
+  updateStats();
+}
+
+function changeStatus(id,status){const b=bookings.find(x=>x.id===id);if(b){b.status=status;renderBookings();updateStats();}}
+function updateStats(){
+  document.getElementById('s-total').textContent=bookings.length;
+  document.getElementById('s-pending').textContent=bookings.filter(b=>b.status==='Pending').length;
+  document.getElementById('s-confirmed').textContent=bookings.filter(b=>b.status==='Confirmed').length;
+  document.getElementById('s-cancelled').textContent=bookings.filter(b=>b.status==='Cancelled').length;
+}
+
+function updateSlotPreview(){
+  const dk=document.getElementById('slot-add-date').value,start=document.getElementById('slot-start').value,end=document.getElementById('slot-end').value,interval=parseInt(document.getElementById('slot-interval').value)||30,max=parseInt(document.getElementById('slot-max').value)||5;
+  const preview=document.getElementById('slot-capacity-preview');
+  if(!dk){preview.innerHTML='';return;}
+  if(!isWorkingDay(dk)){const reason=isWeekend(dk)?'a weekend':('a public/mercantile holiday: '+getHolidayName(dk));preview.innerHTML=`<div class="alert-banner alert-danger"><i class="ti ti-calendar-x"></i>Cannot add slots — this date is ${reason}.</div>`;return;}
+  if(!start||!end){preview.innerHTML='';return;}
+  const [sh,sm]=start.split(':').map(Number),[eh,em]=end.split(':').map(Number);
+  let cur=sh*60+sm,endM=eh*60+em,newCount=0;
+  while(cur+interval<=endM){newCount++;cur+=interval;}
+  const newCap=newCount*max,existCap=getDayTotal(dk),willExceed=(existCap+newCap)>DAY_LIMIT;
+  const color=willExceed?'#A32D2D':'#3B6D11',bg=willExceed?'#FCEBEB':'#EAF3DE',bdr=willExceed?'#A32D2D':'#3B6D11';
+  preview.innerHTML=`<div style="background:${bg};border-radius:8px;padding:10px 14px;font-size:13px;color:${color};border:1px solid ${bdr}"><i class="ti ti-${willExceed?'alert-triangle':'info-circle'}" style="margin-right:6px"></i>Adding <strong>${newCount} slots × ${max} = ${newCap} spots</strong>. Current: <strong>${existCap}</strong>. New total: <strong>${existCap+newCap}</strong>${willExceed?' — <strong>Exceeds 60/day limit.</strong>':' — Within limit.'}</div>`;
+}
+
+function generateSlots(){
+  const dk=document.getElementById('slot-add-date').value,start=document.getElementById('slot-start').value,end=document.getElementById('slot-end').value,interval=parseInt(document.getElementById('slot-interval').value),max=parseInt(document.getElementById('slot-max').value)||5,msg=document.getElementById('slot-msg');
+  if(!dk||!start||!end){msg.style.color='#A32D2D';msg.textContent='Please fill all fields.';return;}
+  if(!isWorkingDay(dk)){const r=isWeekend(dk)?'a weekend':('a public holiday ('+getHolidayName(dk)+')');msg.style.color='#A32D2D';msg.textContent='Cannot add slots — this date is '+r+'.';return;}
+  const [sh,sm]=start.split(':').map(Number),[eh,em]=end.split(':').map(Number);
+  let cur=sh*60+sm,endM=eh*60+em;const newSlots=[];
+  while(cur+interval<=endM){const h=String(Math.floor(cur/60)).padStart(2,'0'),m=String(cur%60).padStart(2,'0');newSlots.push({time:`${h}:${m}`,max,booked:0});cur+=interval;}
+  if(!slots[dk]) slots[dk]=[];
+  const existing=new Set(slots[dk].map(s=>s.time)),toAdd=newSlots.filter(s=>!existing.has(s.time));
+  const existCap=getDayTotal(dk),addCap=toAdd.reduce((a,s)=>a+s.max,0);
+  if(existCap+addCap>DAY_LIMIT){msg.style.color='#A32D2D';msg.textContent=`Cannot add: total would be ${existCap+addCap}, exceeding the 60/day limit.`;return;}
+  slots[dk].push(...toAdd);slots[dk].sort((a,b)=>a.time.localeCompare(b.time));
+  msg.style.color='#3B6D11';msg.textContent=`${toAdd.length} slot(s) added. Day capacity: ${getDayTotal(dk)}/${DAY_LIMIT}.`;
+  renderSlotPreview();
+}
+
+function renderSlotPreview(){
+  const container=document.getElementById('slot-preview');
+  const dates=Object.keys(slots).filter(d=>slots[d].length>0).sort();
+  if(!dates.length){container.innerHTML='';return;}
+  container.innerHTML='<p style="font-size:15px;font-weight:600;margin-bottom:1rem"><i class="ti ti-calendar" style="margin-right:6px;color:#185FA5"></i>Configured slots</p>'+
+  dates.map(dk=>{
+    const label=new Date(dk+'T00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+    const totalCap=getDayTotal(dk),booked=getDayBooked(dk),pct=Math.round((totalCap/DAY_LIMIT)*100);
+    const barColor=pct>=100?'#A32D2D':pct>=80?'#BA7517':'#185FA5';
+    return `<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+        <span style="font-size:14px;font-weight:600">${label}</span>
+        <span style="font-size:12px;color:#777">Capacity: <strong>${totalCap}/${DAY_LIMIT}</strong> · Booked: <strong>${booked}</strong></span>
+      </div>
+      <div style="background:#eee;border-radius:20px;height:5px;overflow:hidden;margin-bottom:10px">
+        <div style="width:${Math.min(pct,100)}%;height:100%;background:${barColor};border-radius:20px"></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${slots[dk].map(s=>`<span style="font-size:12px;padding:4px 10px;border-radius:20px;background:${s.booked>=s.max?'#f5f5f5':'#EAF3DE'};color:${s.booked>=s.max?'#aaa':'#27500A'};border:1px solid ${s.booked>=s.max?'#e0e0e0':'#3B6D11'}">${s.time} (${s.max-s.booked}/${s.max})</span>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addHoliday(){
+  const dk=document.getElementById('hol-date').value,desc=document.getElementById('hol-desc').value.trim(),msg=document.getElementById('hol-msg');
+  if(!dk||!desc){msg.style.color='#A32D2D';msg.textContent='Please enter both date and description.';return;}
+  if(isWeekend(dk)){msg.style.color='#A32D2D';msg.textContent='That date is already a weekend.';return;}
+  customHolidays[dk]=desc;
+  msg.style.color='#3B6D11';msg.textContent=`Holiday added: ${desc}`;
+  document.getElementById('hol-date').value='';document.getElementById('hol-desc').value='';
+  renderHolidaysList();
+}
+function removeCustomHoliday(dk){delete customHolidays[dk];renderHolidaysList();}
+
+function renderHolidaysList(){
+  const container=document.getElementById('holidays-list');
+  const allHols={...SL_HOLIDAYS,...customHolidays};
+  const today=fmtDate(new Date());
+  const upcoming=Object.keys(allHols).sort().filter(d=>d>=today);
+  if(!upcoming.length){container.innerHTML='<p style="font-size:14px;color:#777">No upcoming holidays.</p>';return;}
+  container.innerHTML='<p style="font-size:15px;font-weight:600;margin-bottom:1rem"><i class="ti ti-calendar-off" style="margin-right:6px;color:#185FA5"></i>Upcoming holidays & closures</p>'+
+  upcoming.map(dk=>{
+    const isCustom=!!customHolidays[dk];
+    const label=new Date(dk+'T00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'long',year:'numeric'});
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0;flex-wrap:wrap;gap:6px">
+      <div>
+        <span style="font-size:14px;font-weight:500">${allHols[dk]}</span>
+        ${isCustom?'<span style="font-size:11px;background:#E6F1FB;color:#0C447C;padding:2px 8px;border-radius:20px;margin-left:8px;border:1px solid #185FA5">Custom</span>':''}
+        <p style="font-size:12px;color:#777;margin-top:2px">${label}</p>
+      </div>
+      ${isCustom?`<button class="btn-sm btn-cancel" onclick="removeCustomHoliday('${dk}')"><i class="ti ti-trash"></i> Remove</button>`:'<span style="font-size:12px;color:#bbb">Public/Mercantile</span>'}
+    </div>`;
+  }).join('');
+}
+
+function openReschedule(id){
+  rschBookingId=id;rschSelectedSlot=null;
+  const b=bookings.find(x=>x.id===id);
+  document.getElementById('rsch-ref').textContent=id+' — '+b.name;
+  document.getElementById('rsch-date').value='';
+  document.getElementById('rsch-slot-section').style.display='none';
+  document.getElementById('rsch-status-bar').style.display='none';
+  document.getElementById('reschedule-modal').classList.add('open');
+}
+function loadRschSlots(){
+  const dk=document.getElementById('rsch-date').value,sec=document.getElementById('rsch-slot-section'),grid=document.getElementById('rsch-slot-grid'),sb=document.getElementById('rsch-status-bar');
+  rschSelectedSlot=null;sec.style.display='none';sb.style.display='none';
+  if(isWeekend(dk)){sb.innerHTML='<div class="alert-banner alert-warn"><i class="ti ti-calendar-x"></i>Weekends are not working days.</div>';sb.style.display='block';return;}
+  if(isHoliday(dk)){sb.innerHTML=`<div class="alert-banner alert-danger"><i class="ti ti-beach"></i>Office closed on <strong>${getHolidayName(dk)}</strong>.</div>`;sb.style.display='block';return;}
+  if(!slots[dk]||!slots[dk].length){sb.innerHTML='<div class="alert-banner alert-info"><i class="ti ti-info-circle"></i>No slots configured for this date.</div>';sb.style.display='block';return;}
+  sb.innerHTML=capacityBar(dk);sb.style.display='block';
+  sec.style.display='block';
+  if(isDayFull(dk)){grid.innerHTML='<div class="alert-banner alert-danger"><i class="ti ti-alert-triangle"></i>Day fully booked (60/60).</div>';return;}
+  renderSlotGrid(slots[dk],grid,t=>{rschSelectedSlot=t;});
+}
+function confirmReschedule(){
+  if(!rschSelectedSlot){alert('Please select a time slot.');return;}
+  const dk=document.getElementById('rsch-date').value;
+  if(!dk||!isWorkingDay(dk)){alert('Please select a valid working day.');return;}
+  if(isDayFull(dk)){alert('This day is fully booked.');return;}
+  const b=bookings.find(x=>x.id===rschBookingId);
+  const oldSl=slots[b.date]?.find(s=>s.time===b.time);
+  if(oldSl) oldSl.booked=Math.max(0,oldSl.booked-1);
+  const newSl=slots[dk].find(s=>s.time===rschSelectedSlot);
+  newSl.booked++;
+  b.date=dk;b.time=rschSelectedSlot;b.status='Rescheduled';
+  closeReschedule();renderBookings();
+}
+function closeReschedule(){document.getElementById('reschedule-modal').classList.remove('open');rschBookingId=null;rschSelectedSlot=null;}
+
+const todayStr=fmtDate(new Date());
+document.getElementById('app-date').min=todayStr;
+document.getElementById('slot-add-date').min=todayStr;
+document.getElementById('rsch-date').min=todayStr;
+initData();
+</script>
+</body>
+</html>
