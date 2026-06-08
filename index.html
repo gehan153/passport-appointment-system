@@ -84,12 +84,46 @@
   .form-group{margin-bottom:1rem}
   .form-group label{display:block;font-size:13px;color:var(--text-mid);margin-bottom:5px;font-weight:600}
 
-  /* ── TIME SLOTS ── */
-  .slot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(95px,1fr));gap:8px;margin-top:8px}
-  .slot{padding:8px;text-align:center;border:1.5px solid var(--gray-border);border-radius:var(--radius);cursor:pointer;font-size:13px;color:var(--text-dark);background:var(--white);transition:all .15s}
-  .slot:hover{background:var(--blue-light);border-color:var(--blue);color:var(--blue)}
-  .slot.selected{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600}
-  .slot.full{background:var(--gray-bg);color:#aaa;cursor:not-allowed;border-color:#e0e0e0}
+  /* ── VISUAL CALENDAR ── */
+  .cal-wrap{display:flex;gap:24px;flex-wrap:wrap;margin-top:1rem}
+  .calendar{background:var(--white);border:1.5px solid var(--gray-border);border-radius:var(--radius-lg);padding:1rem;min-width:280px;flex-shrink:0}
+  .cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .cal-header h3{font-size:15px;font-weight:700;color:var(--navy)}
+  .cal-nav{background:none;border:1.5px solid var(--gray-border);border-radius:var(--radius);width:32px;height:32px;cursor:pointer;font-size:16px;color:var(--text-mid);display:flex;align-items:center;justify-content:center}
+  .cal-nav:hover{background:var(--blue-light);border-color:var(--blue)}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .cal-day-label{text-align:center;font-size:11px;font-weight:700;color:var(--text-muted);padding:4px 0}
+  .cal-day{text-align:center;font-size:13px;border-radius:8px;padding:7px 4px;cursor:pointer;font-weight:500;transition:all .15s;min-height:34px;display:flex;align-items:center;justify-content:center}
+  .cal-day.empty{cursor:default}
+  .cal-day.weekend{color:#ccc;cursor:default}
+  .cal-day.holiday{background:#7B4F00;color:#fff;cursor:default;border-radius:8px}
+  .cal-day.past{color:#ddd;cursor:default}
+  .cal-day.full{background:#FCEBEB;color:#A32D2D;cursor:default}
+  .cal-day.available:hover{background:var(--blue-light);color:var(--blue)}
+  .cal-day.selected{background:var(--navy)!important;color:#fff!important;font-weight:700}
+  .cal-day.today{border:2px solid var(--gold)}
+  .cal-legend{display:flex;gap:12px;margin-top:10px;flex-wrap:wrap}
+  .cal-legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted)}
+  .cal-legend-dot{width:14px;height:14px;border-radius:4px;flex-shrink:0}
+
+  /* ── SLOT CARDS ── */
+  .slot-panel{flex:1;min-width:260px}
+  .slot-panel-title{font-size:13px;font-weight:600;color:var(--text-mid);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+  .slot-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+  .slot-card{border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .15s;border:1.5px solid var(--gray-border)}
+  .slot-card.full{cursor:not-allowed;opacity:.6}
+  .slot-card-header{padding:4px 8px;text-align:center;font-size:11px;font-weight:700;letter-spacing:.5px}
+  .slot-card-header.avail{background:#1B6B30;color:#fff}
+  .slot-card-header.full-h{background:#A32D2D;color:#fff}
+  .slot-card-header.sel{background:var(--navy);color:#fff}
+  .slot-card-time{font-size:20px;font-weight:700;color:var(--text-dark);text-align:center;padding:8px 4px 2px}
+  .slot-card-count{font-size:11px;color:var(--text-muted);text-align:center;padding-bottom:8px}
+  .slot-card:not(.full):hover .slot-card-header{background:var(--blue)}
+  .slot-card:not(.full):hover .slot-card-time{color:var(--blue)}
+  .slot-card.selected-card .slot-card-header{background:var(--navy)!important}
+  .slot-card.selected-card{border-color:var(--navy);box-shadow:0 0 0 2px var(--navy)}
+  .slot-card.selected-card .slot-card-time{color:var(--navy)}
+  .selected-summary{margin-top:14px;background:var(--gold-light);border:1.5px solid var(--gold);border-radius:var(--radius);padding:12px 16px;font-size:14px;font-weight:600;color:#7B5800;display:none}
 
   /* ── STATS ── */
   .stat{background:var(--navy);border-radius:var(--radius);padding:1rem;text-align:center}
@@ -173,15 +207,35 @@
             </select>
           </div>
         </div>
-        <div class="form-group">
-          <label>Select date <span style="font-size:12px;color:var(--text-muted);font-weight:400">(weekdays only — holidays blocked)</span></label>
-          <input type="date" id="app-date" style="max-width:240px">
+        <!-- VISUAL CALENDAR + SLOT CARDS -->
+        <div style="margin-top:0.5rem">
+          <label style="font-size:13px;font-weight:600;color:var(--text-mid)"><i class="ti ti-calendar" style="margin-right:5px;color:var(--gold)"></i>Select Appointment Date &amp; Time</label>
+          <div class="cal-wrap">
+            <!-- CALENDAR -->
+            <div class="calendar">
+              <div class="cal-header">
+                <button class="cal-nav" onclick="calPrev()">&#8249;</button>
+                <h3 id="cal-month-label"></h3>
+                <button class="cal-nav" onclick="calNext()">&#8250;</button>
+              </div>
+              <div class="cal-grid" id="cal-grid"></div>
+              <div class="cal-legend">
+                <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#FCEBEB;border:1px solid #A32D2D"></div>Fully booked</div>
+                <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#7B4F00"></div>Holiday</div>
+                <div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--navy)"></div>Selected</div>
+              </div>
+            </div>
+            <!-- SLOT CARDS -->
+            <div class="slot-panel">
+              <div class="slot-panel-title"><i class="ti ti-clock" style="color:var(--gold)"></i><span id="slot-panel-heading">Select a date to see available times</span></div>
+              <div class="slot-cards" id="slot-grid"></div>
+              <div class="selected-summary" id="selected-summary"></div>
+            </div>
+          </div>
         </div>
-        <div id="day-status-bar" style="display:none;margin-bottom:1rem"></div>
-        <div id="slot-section" style="display:none">
-          <label style="font-size:13px;font-weight:600;color:var(--text-mid)">Select time slot <span id="slot-date-label" style="color:var(--text-muted);font-size:12px;font-weight:400"></span></label>
-          <div class="slot-grid" id="slot-grid"></div>
-        </div>
+        <div id="day-status-bar" style="display:none;margin-top:10px"></div>
+        <!-- hidden input keeps existing JS working -->
+        <input type="hidden" id="app-date">
         <div style="margin-top:1.4rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <button class="btn-primary" onclick="submitBooking()"><i class="ti ti-check"></i> Confirm booking</button>
           <p id="booking-error" style="font-size:13px;color:#A32D2D"></p>
@@ -420,28 +474,92 @@ function showView(v){
   document.getElementById('tab-admin').classList.toggle('active',v==='admin');
 }
 
-document.getElementById('app-date').addEventListener('change',function(){
-  const dk=this.value;
-  const sb=document.getElementById('day-status-bar'),sec=document.getElementById('slot-section'),grid=document.getElementById('slot-grid');
-  selectedSlot=null;sec.style.display='none';sb.style.display='none';
-  if(isWeekend(dk)){sb.innerHTML='<div class="alert alert-warn"><i class="ti ti-calendar-x"></i>The office is closed on weekends. Please select a weekday.</div>';sb.style.display='block';return;}
-  if(isHoliday(dk)){sb.innerHTML=`<div class="alert alert-danger"><i class="ti ti-beach"></i>The office is closed on <strong>${getHolidayName(dk)}</strong>. Please select another date.</div>`;sb.style.display='block';return;}
-  if(!slots[dk]||slots[dk].length===0){sb.innerHTML='<div class="alert alert-info"><i class="ti ti-info-circle"></i>No appointment slots configured for this date yet. Please try another date.</div>';sb.style.display='block';return;}
-  sb.innerHTML=capacityBar(dk);sb.style.display='block';
-  sec.style.display='block';
-  if(isDayFull(dk)){grid.innerHTML='<div class="alert alert-danger"><i class="ti ti-alert-triangle"></i>This day has reached the maximum of 60 appointments. Please select another date.</div>';return;}
-  document.getElementById('slot-date-label').textContent='— '+new Date(dk+'T00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
-  renderSlotGrid(slots[dk],grid,t=>{selectedSlot=t;});
-});
+/* ── CALENDAR ENGINE ── */
+let calYear=new Date().getFullYear(), calMonth=new Date().getMonth();
+
+function renderCalendar(){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const label=new Date(calYear,calMonth,1).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+  document.getElementById('cal-month-label').textContent=label;
+  const grid=document.getElementById('cal-grid');
+  grid.innerHTML='';
+  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d=>{
+    const lbl=document.createElement('div');
+    lbl.className='cal-day-label';lbl.textContent=d;grid.appendChild(lbl);
+  });
+  const firstDay=new Date(calYear,calMonth,1).getDay();
+  const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  for(let i=0;i<firstDay;i++){const e=document.createElement('div');e.className='cal-day empty';grid.appendChild(e);}
+  for(let d=1;d<=daysInMonth;d++){
+    const el=document.createElement('div');
+    el.className='cal-day';
+    el.textContent=d;
+    const dk=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const thisDate=new Date(calYear,calMonth,d);
+    const dow=thisDate.getDay();
+    const isTodayDate=thisDate.getTime()===today.getTime();
+    if(isTodayDate) el.classList.add('today');
+    if(thisDate<today){el.classList.add('past');}
+    else if(dow===0||dow===6){el.classList.add('weekend');}
+    else if(isHoliday(dk)){el.classList.add('holiday');el.title=getHolidayName(dk);}
+    else if(isDayFull(dk)){el.classList.add('full');}
+    else{
+      el.classList.add('available');
+      el.onclick=()=>selectCalDay(dk,el);
+    }
+    if(document.getElementById('app-date').value===dk) el.classList.add('selected');
+    grid.appendChild(el);
+  }
+}
+
+function selectCalDay(dk,el){
+  document.getElementById('app-date').value=dk;
+  document.querySelectorAll('.cal-day').forEach(x=>x.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedSlot=null;
+  const sb=document.getElementById('day-status-bar');
+  sb.style.display='none';
+  const heading=document.getElementById('slot-panel-heading');
+  const grid=document.getElementById('slot-grid');
+  const summary=document.getElementById('selected-summary');
+  summary.style.display='none';
+  const label=new Date(dk+'T00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  heading.textContent=label;
+  if(!slots[dk]||slots[dk].length===0){
+    grid.innerHTML='<p style="font-size:13px;color:var(--text-muted)">No slots configured for this date.</p>';return;
+  }
+  renderSlotGrid(slots[dk],grid,t=>{
+    selectedSlot=t;
+    summary.style.display='block';
+    summary.innerHTML=`<i class="ti ti-circle-check" style="margin-right:6px;color:#1B6B30"></i>Your selected appointment: <strong>${label}</strong> at <strong>${t}</strong>`;
+  });
+}
+
+function calPrev(){
+  calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCalendar();
+}
+function calNext(){
+  calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCalendar();
+}
 
 function renderSlotGrid(daySlots,container,onSelect){
   container.innerHTML='';
   daySlots.forEach(s=>{
-    const el=document.createElement('div');
-    el.className='slot'+(s.booked>=s.max?' full':'');
-    el.innerHTML=s.time+'<br><span style="font-size:11px;color:#aaa">'+(s.booked>=s.max?'Full':(s.max-s.booked)+' left')+'</span>';
-    if(s.booked<s.max) el.onclick=()=>{container.querySelectorAll('.slot').forEach(x=>x.classList.remove('selected'));el.classList.add('selected');onSelect(s.time);};
-    container.appendChild(el);
+    const isFull=s.booked>=s.max;
+    const card=document.createElement('div');
+    card.className='slot-card'+(isFull?' full':'');
+    const avail=s.max-s.booked;
+    const fmt12=t=>{const [h,m]=t.split(':').map(Number);const ampm=h>=12?'PM':'AM';const h12=h%12||12;return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;};
+    card.innerHTML=`<div class="slot-card-header ${isFull?'full-h':'avail'}">${isFull?'Full':'Available'}</div>
+      <div class="slot-card-time">${fmt12(s.time)}</div>
+      <div class="slot-card-count">${isFull?'Fully booked':`${avail}/${s.max} Applicant${s.max>1?'s':''}`}</div>`;
+    if(!isFull) card.onclick=()=>{
+      container.querySelectorAll('.slot-card').forEach(x=>{x.classList.remove('selected-card');x.querySelector('.slot-card-header').className='slot-card-header avail';});
+      card.classList.add('selected-card');
+      card.querySelector('.slot-card-header').className='slot-card-header sel';
+      onSelect(s.time);
+    };
+    container.appendChild(card);
   });
 }
 
@@ -473,9 +591,14 @@ function newBooking(){
   document.getElementById('booking-form').style.display='block';
   document.getElementById('booking-success').style.display='none';
   ['app-name','app-passport','app-division','app-phone','app-arrival'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('app-visa-type').value='';document.getElementById('app-date').value='';
-  document.getElementById('slot-section').style.display='none';document.getElementById('day-status-bar').style.display='none';
+  document.getElementById('app-visa-type').value='';
+  document.getElementById('app-date').value='';
+  document.getElementById('slot-grid').innerHTML='';
+  document.getElementById('slot-panel-heading').textContent='Select a date to see available times';
+  document.getElementById('selected-summary').style.display='none';
+  document.getElementById('day-status-bar').style.display='none';
   selectedSlot=null;
+  renderCalendar();
 }
 
 function adminLogin(){
@@ -661,8 +784,9 @@ function confirmReschedule(){
 function closeReschedule(){document.getElementById('reschedule-modal').classList.remove('open');rschBookingId=null;rschSelectedSlot=null;}
 
 const todayStr=fmtDate(new Date());
-document.getElementById('app-date').min=todayStr;
 document.getElementById('slot-add-date').min=todayStr;
 document.getElementById('rsch-date').min=todayStr;
+document.getElementById('app-arrival').max=todayStr;
 initData();
+renderCalendar();
 </script>
