@@ -6,6 +6,7 @@
 <title>PCBPO Appointment System For Passport Handover for Visa</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
 <style>
   :root{
     --navy:#0B2545;
@@ -377,6 +378,70 @@
 </div>
 
 <script>
+const SUPA_URL='https://kajzesphbfofokufiiza.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imthanplc3BoYmZvZm9rdWZpaXphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MTI3MTUsImV4cCI6MjA5NjQ4ODcxNX0.eqUahwoHQ2XyUGCi4DqTuUCqwhIw1qduo0usDaL4ZJg';
+const HDRS={'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'return=minimal'};
+
+async function supa(method,table,body,query=''){
+  try{
+    const res=await fetch(`${SUPA_URL}/rest/v1/${table}${query}`,{method,headers:HDRS,body:body?JSON.stringify(body):undefined});
+    if(method==='GET'||method==='POST'&&query){const t=await res.text();return t?JSON.parse(t):[];}
+    return null;
+  }catch(e){console.warn('DB error',e.message);return null;}
+}
+async function supaGet(table,query=''){
+  try{
+    const res=await fetch(`${SUPA_URL}/rest/v1/${table}${query}`,{headers:{...HDRS,'Accept':'application/json'}});
+    const t=await res.text();return t?JSON.parse(t):[];
+  }catch(e){console.warn('DB get error',e.message);return[];}
+}
+
+/* ── SUPABASE HELPERS ── */
+async function dbInsertBooking(b){
+  await supa('POST','bookings',{id:b.id,name:b.name,passport:b.passport,division:b.division,phone:b.phone,arrival_date:b.arrival,visa_type:b.visaType,date:b.date,time:b.time,end_time:b.endTime||null,status:b.status,pending_days:b.pendingDays,days_left:b.daysLeft,created:b.created});
+}
+async function dbUpdateBookingStatus(id,status){
+  await fetch(`${SUPA_URL}/rest/v1/bookings?id=eq.${id}`,{method:'PATCH',headers:HDRS,body:JSON.stringify({status})});
+}
+async function dbUpdateBookingReschedule(id,date,time,endTime,status){
+  await fetch(`${SUPA_URL}/rest/v1/bookings?id=eq.${id}`,{method:'PATCH',headers:HDRS,body:JSON.stringify({date,time,end_time:endTime||null,status})});
+}
+async function dbLoadBookings(){
+  const data=await supaGet('bookings','?order=date.asc');
+  if(!Array.isArray(data))return[];
+  return data.map(b=>({id:b.id,name:b.name,passport:b.passport,division:b.division,phone:b.phone,arrival:b.arrival_date,visaType:b.visa_type,date:b.date,time:b.time,endTime:b.end_time,status:b.status,pendingDays:b.pending_days,daysLeft:b.days_left,created:b.created}));
+}
+async function dbLoadSlots(){
+  const data=await supaGet('slots','');
+  return Array.isArray(data)?data:[];
+}
+async function dbUpsertSlots(dk,slotList){
+  const rows=slotList.map(s=>({date:dk,time:s.time,end_time:s.endTime||null,max_capacity:s.max,booked:s.booked}));
+  await fetch(`${SUPA_URL}/rest/v1/slots`,{method:'POST',headers:{...HDRS,'Prefer':'resolution=merge-duplicates'},body:JSON.stringify(rows)});
+}
+async function dbIncrementSlot(dk,time){
+  const data=await supaGet('slots',`?date=eq.${dk}&time=eq.${encodeURIComponent(time)}`);
+  if(Array.isArray(data)&&data[0]){
+    await fetch(`${SUPA_URL}/rest/v1/slots?date=eq.${dk}&time=eq.${encodeURIComponent(time)}`,{method:'PATCH',headers:HDRS,body:JSON.stringify({booked:data[0].booked+1})});
+  }
+}
+async function dbDecrementSlot(dk,time){
+  const data=await supaGet('slots',`?date=eq.${dk}&time=eq.${encodeURIComponent(time)}`);
+  if(Array.isArray(data)&&data[0]&&data[0].booked>0){
+    await fetch(`${SUPA_URL}/rest/v1/slots?date=eq.${dk}&time=eq.${encodeURIComponent(time)}`,{method:'PATCH',headers:HDRS,body:JSON.stringify({booked:data[0].booked-1})});
+  }
+}
+async function dbLoadCustomHolidays(){
+  const data=await supaGet('custom_holidays','');
+  return Array.isArray(data)?data:[];
+}
+async function dbInsertHoliday(dk,desc){
+  await supa('POST','custom_holidays',{date:dk,description:desc});
+}
+async function dbDeleteHoliday(dk){
+  await fetch(`${SUPA_URL}/rest/v1/custom_holidays?date=eq.${dk}`,{method:'DELETE',headers:HDRS});
+}
+
 const DAY_LIMIT=60;
 const SL_HOLIDAYS={
   '2025-01-01':"New Year's Day",'2025-01-14':'Thai Pongal','2025-02-04':'National Day',
@@ -397,7 +462,6 @@ const SL_HOLIDAYS={
   '2026-12-23':'Unduvap Poya','2026-12-25':'Christmas Day'
 };
 let customHolidays={},slots={},bookings=[],selectedSlot=null,rschBookingId=null,rschSelectedSlot=null;
-
 function fmtDate(d){return d.toISOString().split('T')[0];}
 function isHoliday(dk){return !!(SL_HOLIDAYS[dk]||customHolidays[dk]);}
 function getHolidayName(dk){return SL_HOLIDAYS[dk]||customHolidays[dk]||null;}
@@ -406,6 +470,20 @@ function isWorkingDay(dk){return !isWeekend(dk)&&!isHoliday(dk);}
 function getDayTotal(dk){if(!slots[dk])return 0;return slots[dk].reduce((a,s)=>a+s.max,0);}
 function getDayBooked(dk){return bookings.filter(b=>b.date===dk&&b.status!=='Cancelled').length;}
 function isDayFull(dk){return getDayBooked(dk)>=DAY_LIMIT;}
+
+function showLoading(msg='Loading...'){
+  let el=document.getElementById('global-loader');
+  if(!el){el=document.createElement('div');el.id='global-loader';
+    el.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(11,37,69,0.55);z-index:999;display:flex;align-items:center;justify-content:center';
+    el.innerHTML=`<div style="background:#fff;border-radius:14px;padding:2rem 2.5rem;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.2)">
+      <div style="width:40px;height:40px;border:4px solid #E3F0FC;border-top-color:#1565C0;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px"></div>
+      <p id="loader-msg" style="font-size:14px;font-weight:600;color:#0B2545">${msg}</p>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style></div>`;
+    document.body.appendChild(el);}
+  else document.getElementById('loader-msg').textContent=msg;
+  el.style.display='flex';
+}
+function hideLoading(){const el=document.getElementById('global-loader');if(el)el.style.display='none';}
 
 function capacityBar(dk){
   const booked=getDayBooked(dk),pct=Math.round((booked/DAY_LIMIT)*100);
@@ -429,18 +507,18 @@ function exportToExcel(){
   const search=document.getElementById('search-input').value.toLowerCase();
   const msg=document.getElementById('export-msg');
   let data=bookings.filter(b=>(!dateFilter||b.date===dateFilter)&&(!statusFilter||b.status===statusFilter)&&(!search||b.name.toLowerCase().includes(search)||b.passport.toLowerCase().includes(search)||b.division.toLowerCase().includes(search)||b.id.toLowerCase().includes(search)));
-  if(!data.length){msg.innerHTML='<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i>No appointments to export for the selected filters.</div>';setTimeout(()=>msg.innerHTML='',3000);return;}
+  if(!data.length){msg.innerHTML='<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i>No appointments to export.</div>';setTimeout(()=>msg.innerHTML='',3000);return;}
   const rows=data.map((b,i)=>{
-    const pendingDays=b.pendingDays!==undefined?b.pendingDays:'N/A';
-    const daysLeft=b.daysLeft!==undefined?b.daysLeft:'N/A';
-    const overstayRisk=typeof b.daysLeft==='number'?(b.daysLeft<0?'OVERSTAY RISK':b.daysLeft<=10?'URGENT':'OK'):'N/A';
-    return {'No.':(i+1),'Reference':b.id,'Full Name':b.name,'Passport No.':b.passport,'Division':b.division,'Contact No.':b.phone,'Visa Type':b.visaType||'N/A','Arrival Date':b.arrival||'N/A','Appointment Date':new Date(b.date+'T00:00').toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}),'Time Slot':b.time,'Days Since Arrival':pendingDays,'Days Left (30-day limit)':daysLeft,'Overstay Risk':overstayRisk,'Status':b.status,'Booked On':b.created};
+    const pd=b.pendingDays!==undefined?b.pendingDays:'N/A';
+    const dl=b.daysLeft!==undefined?b.daysLeft:'N/A';
+    const risk=typeof b.daysLeft==='number'?(b.daysLeft<0?'OVERSTAY RISK':b.daysLeft<=10?'URGENT':'OK'):'N/A';
+    return {'No.':(i+1),'Reference':b.id,'Full Name':b.name,'Passport No.':b.passport,'Division':b.division,'Contact No.':b.phone,'Visa Type':b.visaType||'N/A','Arrival Date':b.arrival||'N/A','Appointment Date':new Date(b.date+'T00:00').toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}),'Time Slot':b.time,'Days Since Arrival':pd,'Days Left (30-day limit)':dl,'Overstay Risk':risk,'Status':b.status,'Booked On':b.created};
   });
   const ws=XLSX.utils.json_to_sheet(rows);
   ws['!cols']=[{wch:5},{wch:12},{wch:22},{wch:14},{wch:14},{wch:16},{wch:16},{wch:14},{wch:32},{wch:10},{wch:18},{wch:22},{wch:14},{wch:14},{wch:14}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Appointments');
-  const wsSummary=XLSX.utils.aoa_to_sheet([['PCBPO Visa Passport Appointment Report'],['Generated on:',new Date().toLocaleString('en-GB')],['Date filter:',dateFilter||'All dates'],['Status filter:',statusFilter||'All statuses'],['Total records:',data.length]]);
+  const wsSummary=XLSX.utils.aoa_to_sheet([['PCBPO Appointment System — Passport Handover for Visa'],['Generated on:',new Date().toLocaleString('en-GB')],['Date filter:',dateFilter||'All dates'],['Status filter:',statusFilter||'All statuses'],['Total records:',data.length]]);
   wsSummary['!cols']=[{wch:20},{wch:36}];
   XLSX.utils.book_append_sheet(wb,wsSummary,'Report Info');
   const filename=dateFilter?`Appointments_${dateFilter}.xlsx`:`Appointments_All_${fmtDate(new Date())}.xlsx`;
@@ -449,9 +527,8 @@ function exportToExcel(){
   setTimeout(()=>msg.innerHTML='',4000);
 }
 
-function initData(){
-  const today=new Date();
-  // Half-hourly slots: 10:00-13:00 and 14:00-16:00, 6 applicants each = 60/day
+async function initData(){
+  showLoading('Loading appointment data...');
   const SLOT_TIMES=[
     {start:'10:00',end:'10:30'},{start:'10:30',end:'11:00'},
     {start:'11:00',end:'11:30'},{start:'11:30',end:'12:00'},
@@ -459,13 +536,47 @@ function initData(){
     {start:'14:00',end:'14:30'},{start:'14:30',end:'15:00'},
     {start:'15:00',end:'15:30'},{start:'15:30',end:'16:00'}
   ];
-  for(let i=0;i<30;i++){
-    const d=new Date(today);d.setDate(today.getDate()+i);
-    const dk=fmtDate(d);
-    if(!isWorkingDay(dk)) continue;
-    slots[dk]=SLOT_TIMES.map(s=>({time:s.start,endTime:s.end,max:6,booked:0}));
+  // Load DB slots
+  try{
+    const dbSlots=await dbLoadSlots();
+    if(dbSlots.length>0){
+      dbSlots.forEach(s=>{
+        if(!slots[s.date]) slots[s.date]=[];
+        slots[s.date].push({time:s.time,endTime:s.end_time,max:s.max_capacity,booked:s.booked});
+      });
+    } else {
+      // First run: seed slots for next 30 working days into DB
+      const today=new Date();
+      const toSeed=[];
+      for(let i=0;i<30;i++){
+        const d=new Date(today);d.setDate(today.getDate()+i);
+        const dk=fmtDate(d);
+        if(!isWorkingDay(dk)) continue;
+        slots[dk]=SLOT_TIMES.map(s=>({time:s.start,endTime:s.end,max:6,booked:0}));
+        toSeed.push(...slots[dk].map(s=>({date:dk,time:s.time,end_time:s.endTime,max_capacity:6,booked:0})));
+      }
+      if(toSeed.length) await db.from('slots').insert(toSeed);
+    }
+  } catch(e){
+    // Offline fallback
+    const today=new Date();
+    for(let i=0;i<30;i++){
+      const d=new Date(today);d.setDate(today.getDate()+i);
+      const dk=fmtDate(d);
+      if(!isWorkingDay(dk)) continue;
+      slots[dk]=SLOT_TIMES.map(s=>({time:s.start,endTime:s.end,max:6,booked:0}));
+    }
   }
+  // Load bookings
+  try{bookings=await dbLoadBookings();}catch(e){bookings=[];}
+  // Load custom holidays
+  try{
+    const hols=await dbLoadCustomHolidays();
+    hols.forEach(h=>{customHolidays[h.date]=h.description;});
+  }catch(e){}
   updateStats();
+  hideLoading();
+  renderCalendar();
 }
 
 function showView(v){
@@ -477,71 +588,52 @@ function showView(v){
 
 /* ── CALENDAR ENGINE ── */
 let calYear=new Date().getFullYear(), calMonth=new Date().getMonth();
-
 function renderCalendar(){
-  const today=new Date(); today.setHours(0,0,0,0);
+  const today=new Date();today.setHours(0,0,0,0);
   const label=new Date(calYear,calMonth,1).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
   document.getElementById('cal-month-label').textContent=label;
   const grid=document.getElementById('cal-grid');
   grid.innerHTML='';
-  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d=>{
-    const lbl=document.createElement('div');
-    lbl.className='cal-day-label';lbl.textContent=d;grid.appendChild(lbl);
-  });
+  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d=>{const lbl=document.createElement('div');lbl.className='cal-day-label';lbl.textContent=d;grid.appendChild(lbl);});
   const firstDay=new Date(calYear,calMonth,1).getDay();
   const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
   for(let i=0;i<firstDay;i++){const e=document.createElement('div');e.className='cal-day empty';grid.appendChild(e);}
   for(let d=1;d<=daysInMonth;d++){
-    const el=document.createElement('div');
-    el.className='cal-day';
-    el.textContent=d;
+    const el=document.createElement('div');el.className='cal-day';el.textContent=d;
     const dk=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const thisDate=new Date(calYear,calMonth,d);
     const dow=thisDate.getDay();
-    const isTodayDate=thisDate.getTime()===today.getTime();
-    if(isTodayDate) el.classList.add('today');
+    if(thisDate.getTime()===today.getTime()) el.classList.add('today');
     if(thisDate<today){el.classList.add('past');}
     else if(dow===0||dow===6){el.classList.add('weekend');}
     else if(isHoliday(dk)){el.classList.add('holiday');el.title=getHolidayName(dk);}
     else if(isDayFull(dk)){el.classList.add('full');}
-    else{
-      el.classList.add('available');
-      el.onclick=()=>selectCalDay(dk,el);
-    }
+    else{el.classList.add('available');el.onclick=()=>selectCalDay(dk,el);}
     if(document.getElementById('app-date').value===dk) el.classList.add('selected');
     grid.appendChild(el);
   }
 }
-
 function selectCalDay(dk,el){
   document.getElementById('app-date').value=dk;
   document.querySelectorAll('.cal-day').forEach(x=>x.classList.remove('selected'));
   el.classList.add('selected');
   selectedSlot=null;
-  const sb=document.getElementById('day-status-bar');
-  sb.style.display='none';
+  document.getElementById('day-status-bar').style.display='none';
   const heading=document.getElementById('slot-panel-heading');
   const grid=document.getElementById('slot-grid');
   const summary=document.getElementById('selected-summary');
   summary.style.display='none';
   const label=new Date(dk+'T00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   heading.textContent=label;
-  if(!slots[dk]||slots[dk].length===0){
-    grid.innerHTML='<p style="font-size:13px;color:var(--text-muted)">No slots configured for this date.</p>';return;
-  }
+  if(!slots[dk]||slots[dk].length===0){grid.innerHTML='<p style="font-size:13px;color:var(--text-muted)">No slots configured for this date.</p>';return;}
   renderSlotGrid(slots[dk],grid,(t,displayTime)=>{
     selectedSlot=t;
     summary.style.display='block';
     summary.innerHTML=`<i class="ti ti-circle-check" style="margin-right:6px;color:#1B6B30"></i>Your selected appointment: <strong>${label}</strong> at <strong>${displayTime}</strong>`;
   });
 }
-
-function calPrev(){
-  calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCalendar();
-}
-function calNext(){
-  calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCalendar();
-}
+function calPrev(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCalendar();}
+function calNext(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCalendar();}
 
 function renderSlotGrid(daySlots,container,onSelect){
   container.innerHTML='';
@@ -556,7 +648,7 @@ function renderSlotGrid(daySlots,container,onSelect){
       <div class="slot-card-time" style="font-size:14px;font-weight:700;padding:10px 6px 2px">${timeLabel}</div>
       <div class="slot-card-count">${isFull?'Fully booked':`${avail}/${s.max} Applicant${s.max>1?'s':''}`}</div>`;
     if(!isFull) card.onclick=()=>{
-      container.querySelectorAll('.slot-card').forEach(x=>{x.classList.remove('selected-card');x.querySelector('.slot-card-header').className='slot-card-header avail';});
+      container.querySelectorAll('.slot-card').forEach(x=>{x.classList.remove('selected-card');const h=x.querySelector('.slot-card-header');if(h&&!x.classList.contains('full'))h.className='slot-card-header avail';});
       card.classList.add('selected-card');
       card.querySelector('.slot-card-header').className='slot-card-header sel';
       const displayTime=s.endTime?`${fmt12(s.time)} – ${fmt12(s.endTime)}`:fmt12(s.time);
@@ -566,28 +658,39 @@ function renderSlotGrid(daySlots,container,onSelect){
   });
 }
 
-function submitBooking(){
-  const name=document.getElementById('app-name').value.trim(),passport=document.getElementById('app-passport').value.trim(),division=document.getElementById('app-division').value.trim(),phone=document.getElementById('app-phone').value.trim(),date=document.getElementById('app-date').value,arrival=document.getElementById('app-arrival').value,visaType=document.getElementById('app-visa-type').value,err=document.getElementById('booking-error');
+async function submitBooking(){
+  const name=document.getElementById('app-name').value.trim(),
+        passport=document.getElementById('app-passport').value.trim(),
+        division=document.getElementById('app-division').value.trim(),
+        phone=document.getElementById('app-phone').value.trim(),
+        date=document.getElementById('app-date').value,
+        arrival=document.getElementById('app-arrival').value,
+        visaType=document.getElementById('app-visa-type').value,
+        err=document.getElementById('booking-error');
   if(!name||!passport||!division||!phone||!date||!arrival||!visaType||!selectedSlot){err.textContent='Please fill all fields, select visa type, arrival date and a time slot.';return;}
   if(!isWorkingDay(date)){err.textContent='Selected date is a weekend or public holiday.';return;}
   if(isDayFull(date)){err.textContent='Sorry, this day is fully booked. Please choose another date.';return;}
-  // Check arrival date not in future
   if(arrival>date){err.textContent='Arrival date cannot be after the appointment date.';return;}
   err.textContent='';
-  const sl=slots[date].find(s=>s.time===selectedSlot);sl.booked++;
-  const ref='APT'+String(1000+bookings.length+1);
+  showLoading('Saving your appointment...');
+  const sl=slots[date].find(s=>s.time===selectedSlot);
+  sl.booked++;
+  const ref='APT'+String(Date.now()).slice(-6);
   const pendingDays=Math.floor((new Date(date+'T00:00')-new Date(arrival+'T00:00'))/(1000*60*60*24));
   const daysLeft=30-pendingDays;
-  bookings.push({id:ref,name,passport,division,phone,arrival,visaType,date,time:selectedSlot,status:'Pending',pendingDays,daysLeft,created:new Date().toLocaleDateString('en-GB')});
+  const booking={id:ref,name,passport,division,phone,arrival,visaType,date,time:selectedSlot,endTime:sl.endTime||null,status:'Pending',pendingDays,daysLeft,created:new Date().toLocaleDateString('en-GB')};
+  await dbInsertBooking(booking);
+  await dbIncrementSlot(date,selectedSlot);
+  bookings.push(booking);
   updateStats();
+  hideLoading();
   document.getElementById('booking-form').style.display='none';
   document.getElementById('booking-success').style.display='block';
   document.getElementById('ref-number').textContent=ref;
   document.getElementById('success-detail').textContent=`${name} — ${new Date(date+'T00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} at ${selectedSlot}`;
-  // Show overstay warning if needed
   const warn=document.getElementById('overstay-warn');
   if(daysLeft<=10){warn.style.display='block';warn.textContent=`⚠️ Warning: Only ${daysLeft} day(s) left before 30-day visa deadline!`;}
-  else{warn.style.display='none';}
+  else warn.style.display='none';
 }
 
 function newBooking(){
@@ -600,8 +703,7 @@ function newBooking(){
   document.getElementById('slot-panel-heading').textContent='Select a date to see available times';
   document.getElementById('selected-summary').style.display='none';
   document.getElementById('day-status-bar').style.display='none';
-  selectedSlot=null;
-  renderCalendar();
+  selectedSlot=null;renderCalendar();
 }
 
 function adminLogin(){
@@ -609,7 +711,7 @@ function adminLogin(){
     document.getElementById('admin-login').style.display='none';
     document.getElementById('admin-dashboard').style.display='block';
     renderBookings();
-  } else {document.getElementById('login-error').textContent='Invalid username or password.';}
+  } else document.getElementById('login-error').textContent='Invalid username or password.';
 }
 function adminLogout(){
   document.getElementById('admin-login').style.display='block';
@@ -624,8 +726,11 @@ function switchAdminTab(t){
   if(t==='slots') renderSlotPreview();
   if(t==='holidays') renderHolidaysList();
 }
+
 function renderBookings(){
-  const search=document.getElementById('search-input').value.toLowerCase(),status=document.getElementById('filter-status').value,date=document.getElementById('filter-date').value;
+  const search=document.getElementById('search-input').value.toLowerCase(),
+        status=document.getElementById('filter-status').value,
+        date=document.getElementById('filter-date').value;
   let filtered=bookings.filter(b=>(!status||b.status===status)&&(!date||b.date===date)&&(!search||b.name.toLowerCase().includes(search)||b.passport.toLowerCase().includes(search)||b.division.toLowerCase().includes(search)||b.id.toLowerCase().includes(search)));
   const container=document.getElementById('bookings-list');
   if(!filtered.length){container.innerHTML='<p style="font-size:14px;color:var(--text-muted);padding:1rem 0">No appointments found.</p>';return;}
@@ -634,22 +739,21 @@ function renderBookings(){
     const dl=b.daysLeft!==undefined?b.daysLeft:'-';
     const dlColor=typeof b.daysLeft==='number'?(b.daysLeft<0?'#A32D2D':b.daysLeft<=10?'#BA7517':'#1B6B30'):'var(--text-muted)';
     const dlBg=typeof b.daysLeft==='number'?(b.daysLeft<0?'#FCEBEB':b.daysLeft<=10?'#FEF3CD':'#D6F0DC'):'var(--gray-bg)';
-    return `
-    <div class="card" style="margin-bottom:10px">
+    return `<div class="card" style="margin-bottom:10px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
             <span style="font-size:15px;font-weight:700;color:var(--navy)">${b.name}</span>
             <span class="badge badge-${b.status.toLowerCase()}">${b.status}</span>
             <span style="font-size:11px;background:var(--blue-light);color:var(--blue);padding:2px 10px;border-radius:20px;border:1px solid var(--blue)">${b.visaType||'N/A'}</span>
             <span style="font-size:11px;background:${dlBg};color:${dlColor};padding:2px 10px;border-radius:20px;border:1px solid ${dlColor};font-weight:600">${typeof b.daysLeft==='number'&&b.daysLeft<0?'OVERSTAY RISK':dl+' days left'}</span>
           </div>
-          <div style="font-size:13px;color:var(--text-muted);display:flex;flex-wrap:wrap;gap:14px">
+          <div style="font-size:13px;color:var(--text-muted);display:flex;flex-wrap:wrap;gap:12px">
             <span><i class="ti ti-id-badge"></i> ${b.passport}</span>
             <span><i class="ti ti-map-pin"></i> ${b.division}</span>
             <span><i class="ti ti-phone"></i> ${b.phone}</span>
             <span><i class="ti ti-plane-arrival"></i> Arrived: ${b.arrival||'N/A'}</span>
-            <span><i class="ti ti-calendar"></i> Appt: ${new Date(b.date+'T00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</span>
+            <span><i class="ti ti-calendar"></i> ${new Date(b.date+'T00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</span>
             <span><i class="ti ti-clock"></i> ${b.time}</span>
             <span><i class="ti ti-hourglass"></i> ${pd} day(s) since arrival</span>
             <span style="color:#ccc">Ref: ${b.id}</span>
@@ -661,16 +765,25 @@ function renderBookings(){
           ${b.status!=='Cancelled'?`<button class="btn-sm btn-reschedule" onclick="openReschedule('${b.id}')"><i class="ti ti-calendar-event"></i> Reschedule</button>`:''}
         </div>
       </div>
-    </div>`}).join('');
+    </div>`;}).join('');
   updateStats();
 }
-function changeStatus(id,status){const b=bookings.find(x=>x.id===id);if(b){b.status=status;renderBookings();updateStats();}}
+
+async function changeStatus(id,status){
+  const b=bookings.find(x=>x.id===id);
+  if(b){
+    b.status=status;
+    await dbUpdateBookingStatus(id,status);
+    renderBookings();updateStats();
+  }
+}
 function updateStats(){
   document.getElementById('s-total').textContent=bookings.length;
   document.getElementById('s-pending').textContent=bookings.filter(b=>b.status==='Pending').length;
   document.getElementById('s-confirmed').textContent=bookings.filter(b=>b.status==='Confirmed').length;
   document.getElementById('s-cancelled').textContent=bookings.filter(b=>b.status==='Cancelled').length;
 }
+
 function updateSlotPreview(){
   const dk=document.getElementById('slot-add-date').value,start=document.getElementById('slot-start').value,end=document.getElementById('slot-end').value,interval=parseInt(document.getElementById('slot-interval').value)||30,max=parseInt(document.getElementById('slot-max').value)||5;
   const preview=document.getElementById('slot-capacity-preview');
@@ -684,21 +797,30 @@ function updateSlotPreview(){
   const color=willExceed?'#791F1F':'#1B6B30',bg=willExceed?'#FCEBEB':'#D6F0DC',bdr=willExceed?'#A32D2D':'#1B6B30';
   preview.innerHTML=`<div style="background:${bg};border-radius:10px;padding:10px 14px;font-size:13px;color:${color};border:1.5px solid ${bdr}"><i class="ti ti-${willExceed?'alert-triangle':'info-circle'}" style="margin-right:6px"></i>Adding <strong>${newCount} slots × ${max} = ${newCap} spots</strong>. Current: <strong>${existCap}</strong>. New total: <strong>${existCap+newCap}</strong>${willExceed?' — <strong>Exceeds 60/day limit.</strong>':' — Within limit.'}</div>`;
 }
-function generateSlots(){
+
+async function generateSlots(){
   const dk=document.getElementById('slot-add-date').value,start=document.getElementById('slot-start').value,end=document.getElementById('slot-end').value,interval=parseInt(document.getElementById('slot-interval').value),max=parseInt(document.getElementById('slot-max').value)||5,msg=document.getElementById('slot-msg');
   if(!dk||!start||!end){msg.style.color='#A32D2D';msg.textContent='Please fill all fields.';return;}
   if(!isWorkingDay(dk)){const r=isWeekend(dk)?'a weekend':('a public holiday ('+getHolidayName(dk)+')');msg.style.color='#A32D2D';msg.textContent='Cannot add slots — this date is '+r+'.';return;}
   const [sh,sm]=start.split(':').map(Number),[eh,em]=end.split(':').map(Number);
   let cur=sh*60+sm,endM=eh*60+em;const newSlots=[];
-  while(cur+interval<=endM){const h=String(Math.floor(cur/60)).padStart(2,'0'),m=String(cur%60).padStart(2,'0');newSlots.push({time:`${h}:${m}`,max,booked:0});cur+=interval;}
+  while(cur+interval<=endM){
+    const h=String(Math.floor(cur/60)).padStart(2,'0'),m=String(cur%60).padStart(2,'0');
+    const nh=String(Math.floor((cur+interval)/60)).padStart(2,'0'),nm=String((cur+interval)%60).padStart(2,'0');
+    newSlots.push({time:`${h}:${m}`,endTime:`${nh}:${nm}`,max,booked:0});cur+=interval;
+  }
   if(!slots[dk]) slots[dk]=[];
   const existing=new Set(slots[dk].map(s=>s.time)),toAdd=newSlots.filter(s=>!existing.has(s.time));
   const existCap=getDayTotal(dk),addCap=toAdd.reduce((a,s)=>a+s.max,0);
   if(existCap+addCap>DAY_LIMIT){msg.style.color='#A32D2D';msg.textContent=`Cannot add: total would be ${existCap+addCap}, exceeding the 60/day limit.`;return;}
+  showLoading('Saving slots...');
   slots[dk].push(...toAdd);slots[dk].sort((a,b)=>a.time.localeCompare(b.time));
+  await dbUpsertSlots(dk,slots[dk]);
+  hideLoading();
   msg.style.color='#1B6B30';msg.textContent=`${toAdd.length} slot(s) added. Day capacity: ${getDayTotal(dk)}/${DAY_LIMIT}.`;
   renderSlotPreview();
 }
+
 function renderSlotPreview(){
   const container=document.getElementById('slot-preview');
   const dates=Object.keys(slots).filter(d=>slots[d].length>0).sort();
@@ -717,20 +839,29 @@ function renderSlotPreview(){
         <div style="width:${Math.min(pct,100)}%;height:100%;background:${barColor};border-radius:20px"></div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">
-        ${slots[dk].map(s=>`<span style="font-size:12px;padding:4px 10px;border-radius:20px;background:${s.booked>=s.max?'#f5f5f5':'#D6F0DC'};color:${s.booked>=s.max?'#aaa':'#1B6B30'};border:1px solid ${s.booked>=s.max?'#e0e0e0':'#1B6B30'}">${s.time} (${s.max-s.booked}/${s.max})</span>`).join('')}
+        ${slots[dk].map(s=>`<span style="font-size:12px;padding:4px 10px;border-radius:20px;background:${s.booked>=s.max?'#f5f5f5':'#D6F0DC'};color:${s.booked>=s.max?'#aaa':'#1B6B30'};border:1px solid ${s.booked>=s.max?'#e0e0e0':'#1B6B30'}">${s.time}${s.endTime?'–'+s.endTime:''} (${s.max-s.booked}/${s.max})</span>`).join('')}
       </div>
     </div>`;
   }).join('');
 }
-function addHoliday(){
+
+async function addHoliday(){
   const dk=document.getElementById('hol-date').value,desc=document.getElementById('hol-desc').value.trim(),msg=document.getElementById('hol-msg');
   if(!dk||!desc){msg.style.color='#A32D2D';msg.textContent='Please enter both date and description.';return;}
   if(isWeekend(dk)){msg.style.color='#A32D2D';msg.textContent='That date is already a weekend.';return;}
-  customHolidays[dk]=desc;msg.style.color='#1B6B30';msg.textContent=`Holiday added: ${desc}`;
+  showLoading('Saving holiday...');
+  await dbInsertHoliday(dk,desc);
+  customHolidays[dk]=desc;
+  hideLoading();
+  msg.style.color='#1B6B30';msg.textContent=`Holiday added: ${desc}`;
   document.getElementById('hol-date').value='';document.getElementById('hol-desc').value='';
   renderHolidaysList();
 }
-function removeCustomHoliday(dk){delete customHolidays[dk];renderHolidaysList();}
+async function removeCustomHoliday(dk){
+  await dbDeleteHoliday(dk);
+  delete customHolidays[dk];
+  renderHolidaysList();
+}
 function renderHolidaysList(){
   const container=document.getElementById('holidays-list');
   const allHols={...SL_HOLIDAYS,...customHolidays};
@@ -751,6 +882,7 @@ function renderHolidaysList(){
     </div>`;
   }).join('');
 }
+
 function openReschedule(id){
   rschBookingId=id;rschSelectedSlot=null;
   const b=bookings.find(x=>x.id===id);
@@ -771,17 +903,21 @@ function loadRschSlots(){
   if(isDayFull(dk)){grid.innerHTML='<div class="alert alert-danger"><i class="ti ti-alert-triangle"></i>Day fully booked (60/60).</div>';return;}
   renderSlotGrid(slots[dk],grid,(t)=>{rschSelectedSlot=t;});
 }
-function confirmReschedule(){
+async function confirmReschedule(){
   if(!rschSelectedSlot){alert('Please select a time slot.');return;}
   const dk=document.getElementById('rsch-date').value;
   if(!dk||!isWorkingDay(dk)){alert('Please select a valid working day.');return;}
   if(isDayFull(dk)){alert('This day is fully booked.');return;}
+  showLoading('Updating appointment...');
   const b=bookings.find(x=>x.id===rschBookingId);
   const oldSl=slots[b.date]?.find(s=>s.time===b.time);
-  if(oldSl) oldSl.booked=Math.max(0,oldSl.booked-1);
+  if(oldSl){oldSl.booked=Math.max(0,oldSl.booked-1);await dbDecrementSlot(b.date,b.time);}
   const newSl=slots[dk].find(s=>s.time===rschSelectedSlot);
   newSl.booked++;
+  await dbIncrementSlot(dk,rschSelectedSlot);
   b.date=dk;b.time=rschSelectedSlot;b.status='Rescheduled';
+  await dbUpdateBookingReschedule(b.id,dk,rschSelectedSlot,newSl.endTime||null,'Rescheduled');
+  hideLoading();
   closeReschedule();renderBookings();
 }
 function closeReschedule(){document.getElementById('reschedule-modal').classList.remove('open');rschBookingId=null;rschSelectedSlot=null;}
@@ -791,5 +927,6 @@ document.getElementById('slot-add-date').min=todayStr;
 document.getElementById('rsch-date').min=todayStr;
 document.getElementById('app-arrival').max=todayStr;
 initData();
-renderCalendar();
 </script>
+</body>
+</html>
