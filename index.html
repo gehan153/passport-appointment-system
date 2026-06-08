@@ -195,7 +195,7 @@
           <div class="form-group"><label>Full name</label><input type="text" id="app-name" placeholder="e.g. Kamal Perera"></div>
           <div class="form-group"><label>Passport number</label><input type="text" id="app-passport" placeholder="e.g. N1234567"></div>
           <div class="form-group"><label>Division <span style="font-size:12px;color:var(--text-muted);font-weight:400">(type your division)</span></label>
-            <input type="text" id="app-division" placeholder="e.g. Colombo">
+            <input type="text" id="app-division" placeholder="">
           </div>
           <div class="form-group"><label>Contact number</label><input type="tel" id="app-phone" placeholder="e.g. 0771234567"></div>
           <div class="form-group"><label>Arrival date to Sri Lanka</label><input type="date" id="app-arrival" style="max-width:220px"></div>
@@ -451,18 +451,19 @@ function exportToExcel(){
 
 function initData(){
   const today=new Date();
+  // Half-hourly slots: 10:00-13:00 and 14:00-16:00, 6 applicants each = 60/day
+  const SLOT_TIMES=[
+    {start:'10:00',end:'10:30'},{start:'10:30',end:'11:00'},
+    {start:'11:00',end:'11:30'},{start:'11:30',end:'12:00'},
+    {start:'12:00',end:'12:30'},{start:'12:30',end:'13:00'},
+    {start:'14:00',end:'14:30'},{start:'14:30',end:'15:00'},
+    {start:'15:00',end:'15:30'},{start:'15:30',end:'16:00'}
+  ];
   for(let i=0;i<30;i++){
     const d=new Date(today);d.setDate(today.getDate()+i);
     const dk=fmtDate(d);
     if(!isWorkingDay(dk)) continue;
-    slots[dk]=[];
-    // 10:00–13:00 and 14:00–16:00, 5-min intervals (12 slots/hour)
-    const generateRange=(startH,startM,endH,endM)=>{
-      let cur=startH*60+startM,end=endH*60+endM;
-      while(cur<end){const h=String(Math.floor(cur/60)).padStart(2,'0'),m=String(cur%60).padStart(2,'0');slots[dk].push({time:`${h}:${m}`,max:1,booked:0});cur+=5;}
-    };
-    generateRange(10,0,13,0);
-    generateRange(14,0,16,0);
+    slots[dk]=SLOT_TIMES.map(s=>({time:s.start,endTime:s.end,max:6,booked:0}));
   }
   updateStats();
 }
@@ -528,10 +529,10 @@ function selectCalDay(dk,el){
   if(!slots[dk]||slots[dk].length===0){
     grid.innerHTML='<p style="font-size:13px;color:var(--text-muted)">No slots configured for this date.</p>';return;
   }
-  renderSlotGrid(slots[dk],grid,t=>{
+  renderSlotGrid(slots[dk],grid,(t,displayTime)=>{
     selectedSlot=t;
     summary.style.display='block';
-    summary.innerHTML=`<i class="ti ti-circle-check" style="margin-right:6px;color:#1B6B30"></i>Your selected appointment: <strong>${label}</strong> at <strong>${t}</strong>`;
+    summary.innerHTML=`<i class="ti ti-circle-check" style="margin-right:6px;color:#1B6B30"></i>Your selected appointment: <strong>${label}</strong> at <strong>${displayTime}</strong>`;
   });
 }
 
@@ -550,14 +551,16 @@ function renderSlotGrid(daySlots,container,onSelect){
     card.className='slot-card'+(isFull?' full':'');
     const avail=s.max-s.booked;
     const fmt12=t=>{const [h,m]=t.split(':').map(Number);const ampm=h>=12?'PM':'AM';const h12=h%12||12;return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;};
+    const timeLabel=s.endTime?`${fmt12(s.time)} – ${fmt12(s.endTime)}`:fmt12(s.time);
     card.innerHTML=`<div class="slot-card-header ${isFull?'full-h':'avail'}">${isFull?'Full':'Available'}</div>
-      <div class="slot-card-time">${fmt12(s.time)}</div>
+      <div class="slot-card-time" style="font-size:14px;font-weight:700;padding:10px 6px 2px">${timeLabel}</div>
       <div class="slot-card-count">${isFull?'Fully booked':`${avail}/${s.max} Applicant${s.max>1?'s':''}`}</div>`;
     if(!isFull) card.onclick=()=>{
       container.querySelectorAll('.slot-card').forEach(x=>{x.classList.remove('selected-card');x.querySelector('.slot-card-header').className='slot-card-header avail';});
       card.classList.add('selected-card');
       card.querySelector('.slot-card-header').className='slot-card-header sel';
-      onSelect(s.time);
+      const displayTime=s.endTime?`${fmt12(s.time)} – ${fmt12(s.endTime)}`:fmt12(s.time);
+      onSelect(s.time,displayTime);
     };
     container.appendChild(card);
   });
@@ -766,7 +769,7 @@ function loadRschSlots(){
   sb.innerHTML=capacityBar(dk);sb.style.display='block';
   sec.style.display='block';
   if(isDayFull(dk)){grid.innerHTML='<div class="alert alert-danger"><i class="ti ti-alert-triangle"></i>Day fully booked (60/60).</div>';return;}
-  renderSlotGrid(slots[dk],grid,t=>{rschSelectedSlot=t;});
+  renderSlotGrid(slots[dk],grid,(t)=>{rschSelectedSlot=t;});
 }
 function confirmReschedule(){
   if(!rschSelectedSlot){alert('Please select a time slot.');return;}
